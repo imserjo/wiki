@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Статистика тегов{% endblock %}
+{% block content %}
+<h1>📊 Статистика тегов</h1>
+
+{% if stats %}
+<table class="stats">
+    <thead>
+        <tr>
+            <th>Тег</th>
+            <th>Заметок</th>
+            <th>Средняя длина (слов)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in stats %}
+        <tr>
+            <td><a href="/notes?tag={{ row.tag }}" class="tag">#{{ row.tag }}</a></td>
+            <td>{{ row.notes_count }}</td>
+            <td>{{ row.avg_words }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="empty">Пока нет заметок с тегами.</p>
+{% endif %}
+
+<p class="actions" style="margin-top: 20px;">
+    <a href="/notes" class="btn secondary">← К списку</a>
+</p>
+{% endblock %}

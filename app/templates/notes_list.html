@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Мои заметки{% endblock %}
+{% block content %}
+<h1>Мои заметки</h1>
+
+<form method="get" action="/notes" class="filters">
+    <input type="text" name="search" placeholder="Поиск..." value="{{ search or '' }}">
+    <select name="tag">
+        <option value="">Все теги</option>
+        {% for t in all_tags %}
+            <option value="{{ t.name }}" {% if t.name == tag %}selected{% endif %}>
+                {{ t.name }}
+            </option>
+        {% endfor %}
+    </select>
+    <button type="submit">Найти</button>
+    {% if search or tag %}
+        <a href="/notes" class="clear">Сбросить</a>
+    {% endif %}
+</form>
+
+<p class="actions">
+    <a href="/notes/new" class="btn">+ Новая заметка</a>
+    <a href="/export/csv" class="btn">⬇ CSV</a>
+    <a href="/export/xlsx" class="btn">⬇ Excel</a>
+    <a href="/analytics/tags" class="btn">📊 Статистика тегов</a>
+</p>
+
+{% if notes %}
+<ul class="notes">
+    {% for note in notes %}
+    <li>
+        <a href="/notes/{{ note.id }}" class="title">{{ note.title }}</a>
+        <div class="meta">
+            обновлено {{ note.updated_at.strftime("%Y-%m-%d %H:%M") }}
+        </div>
+        {% if note.tags %}
+        <div class="tags">
+            {% for t in note.tags %}
+                <a href="/notes?tag={{ t.name }}" class="tag">#{{ t.name }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <p class="preview">{{ note.content[:160] }}{% if note.content|length > 160 %}…{% endif %}</p>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="empty">Пока пусто. Создайте первую заметку!</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,41 @@
+.struktura.txt
+.append.txt
+
+# Переменные окружения — НИКОГДА не коммитим
+.env
+.env.*
+!.env.example
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Тесты и кэш
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# VS Code (по желанию — оставьте, если хотите делиться настройками команды)
+# .vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+
