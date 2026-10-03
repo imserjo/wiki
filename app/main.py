@@ -414,4 +414,3 @@ def page_tags_stats(
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     return RedirectResponse("/static/favicon.ico", status_code=301)
-
