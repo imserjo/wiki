@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from .config import settings
@@ -17,4 +17,4 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(schema=settings.DB_SCHEMA)
