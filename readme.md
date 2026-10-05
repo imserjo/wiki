@@ -31,10 +31,17 @@ git clone https://github.com/imserjo/wiki.git
 cd wiki
 ```
 
+1. a) Обновить репозиторий до актуальной версии
+```bash
+cd wiki
+git pull
+```
+
+
 2. Создать и активировать виртуальное окружение
 Windows (PowerShell):
 
-```powershell
+```bash
 python -m venv .venv
 .venv\Scripts\activate
 ```
@@ -56,6 +63,6 @@ pip install -r requirements.txt
 ```
 
 5. Запуск приложения из папки wiki
-```
+```bash
 python -m uvicorn app.main:app --reload --port 8000 --host 0.0.0.0
 ```
