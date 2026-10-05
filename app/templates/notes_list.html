@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Мои заметки</h1>
 
-<form method="get" action="/notes" class="filters">
+<form method="get" action="{{ APP_PREFIX }}/notes" class="filters">
     <input type="text" name="search" placeholder="Поиск..." value="{{ search or '' }}">
     <select name="tag">
         <option value="">Все теги</option>
@@ -15,29 +15,29 @@
     </select>
     <button type="submit">Найти</button>
     {% if search or tag %}
-        <a href="/notes" class="clear">Сбросить</a>
+        <a href="{{ APP_PREFIX }}/notes" class="clear">Сбросить</a>
     {% endif %}
 </form>
 
 <p class="actions">
-    <a href="/notes/new" class="btn">+ Новая заметка</a>
-    <a href="/export/csv" class="btn">⬇ CSV</a>
-    <a href="/export/xlsx" class="btn">⬇ Excel</a>
-    <a href="/analytics/tags" class="btn">📊 Статистика тегов</a>
+    <a href="{{ APP_PREFIX }}/notes/new" class="btn">+ Новая заметка</a>
+    <a href="{{ APP_PREFIX }}/export/csv" class="btn">⬇ CSV</a>
+    <a href="{{ APP_PREFIX }}/export/xlsx" class="btn">⬇ Excel</a>
+    <a href="{{ APP_PREFIX }}/analytics/tags" class="btn">📊 Статистика тегов</a>
 </p>
 
 {% if notes %}
 <ul class="notes">
     {% for note in notes %}
     <li>
-        <a href="/notes/{{ note.id }}" class="title">{{ note.title }}</a>
+        <a href="{{ APP_PREFIX }}/notes/{{ note.id }}" class="title">{{ note.title }}</a>
         <div class="meta">
             обновлено {{ note.updated_at.strftime("%Y-%m-%d %H:%M") }}
         </div>
         {% if note.tags %}
         <div class="tags">
             {% for t in note.tags %}
-                <a href="/notes?tag={{ t.name }}" class="tag">#{{ t.name }}</a>
+                <a href="{{ APP_PREFIX }}/notes?tag={{ t.name }}" class="tag">#{{ t.name }}</a>
             {% endfor %}
         </div>
         {% endif %}

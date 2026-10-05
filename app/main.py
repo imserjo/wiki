@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import (
-    Depends, FastAPI, Form, HTTPException, Query, Request, status,
+    Depends, FastAPI, Form, HTTPException, Query, Request, status, APIRouter,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.security import OAuth2PasswordRequestForm
@@ -19,9 +19,10 @@ from app.serjotools.database import Base, engine
 from app.serjotools.dependencies import get_db, get_current_user
 from app.serjotools.models import User
 from app.serjotools.security import create_access_token, verify_password
+from app.serjotools.config import settings
 
 BASE_DIR = Path(__file__).resolve().parent
-
+PREFIX = settings.APP_PREFIX
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,9 +31,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Knowledge Base", version="1.1.0", lifespan=lifespan)
+# app = FastAPI(title="Knowledge Base", version="1.1.0", lifespan=lifespan, root_path=PREFIX,)
 
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+# Статика монтируется с префиксом, чтобы URL /wiki/static/... работал
+app.mount(f"{PREFIX}/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.globals["APP_PREFIX"] = PREFIX
 
 COOKIE_NAME = web_auth.COOKIE_NAME
 COOKIE_MAX_AGE = 60 * 60  # 1 час
@@ -40,6 +44,7 @@ COOKIE_MAX_AGE = 60 * 60  # 1 час
 
 # ============================================================
 #  JSON API (всё под /api, требует Bearer-токен)
+#  Оставляем без префикса /wiki — если нужно иное, см. примечание
 # ============================================================
 
 @app.post("/api/auth/register", response_model=schemas.UserOut, status_code=201)
@@ -173,8 +178,11 @@ def health():
 
 
 # ============================================================
-#  Web UI (HTML, cookie-сессия)
+#  Web UI (HTML, cookie-сессия) — всё под префиксом /wiki
 # ============================================================
+
+router = APIRouter(prefix=PREFIX)
+
 
 def _set_auth_cookie(response: Response, token: str) -> None:
     response.set_cookie(
@@ -183,28 +191,28 @@ def _set_auth_cookie(response: Response, token: str) -> None:
         max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
-        path="/",
+        path=PREFIX or "/",
     )
 
 
-@app.get("/", include_in_schema=False)
-def root(user: User | None = Depends(web_auth.get_current_user_optional)):
+@router.get("/", include_in_schema=False, name="root")
+def root(request: Request, user: User | None = Depends(web_auth.get_current_user_optional)):
     if user:
-        return RedirectResponse("/notes", status_code=303)
-    return RedirectResponse("/login", status_code=303)
+        return RedirectResponse(request.url_for("page_notes"), status_code=303)
+    return RedirectResponse(request.url_for("page_login"), status_code=303)
 
 
-@app.get("/login", response_class=HTMLResponse)
+@router.get("/login", response_class=HTMLResponse, name="page_login")
 def page_login(
     request: Request,
     user: User | None = Depends(web_auth.get_current_user_optional),
 ):
     if user:
-        return RedirectResponse("/notes", status_code=303)
+        return RedirectResponse(request.url_for("page_notes"), status_code=303)
     return templates.TemplateResponse("login.html", {"request": request, "user": None})
 
 
-@app.post("/login", response_class=HTMLResponse)
+@router.post("/login", response_class=HTMLResponse, name="page_login_post")
 def page_login_post(
     request: Request,
     username: str = Form(...),
@@ -218,22 +226,22 @@ def page_login_post(
             {"request": request, "user": None, "error": "Неверный логин или пароль"},
             status_code=400,
         )
-    response = RedirectResponse("/notes", status_code=303)
+    response = RedirectResponse(request.url_for("page_notes"), status_code=303)
     _set_auth_cookie(response, create_access_token(user.id))
     return response
 
 
-@app.get("/register", response_class=HTMLResponse)
+@router.get("/register", response_class=HTMLResponse, name="page_register")
 def page_register(
     request: Request,
     user: User | None = Depends(web_auth.get_current_user_optional),
 ):
     if user:
-        return RedirectResponse("/notes", status_code=303)
+        return RedirectResponse(request.url_for("page_notes"), status_code=303)
     return templates.TemplateResponse("register.html", {"request": request, "user": None})
 
 
-@app.post("/register", response_class=HTMLResponse)
+@router.post("/register", response_class=HTMLResponse, name="page_register_post")
 def page_register_post(
     request: Request,
     username: str = Form(...),
@@ -247,19 +255,19 @@ def page_register_post(
             status_code=400,
         )
     user = crud.create_user(db, username, password)
-    response = RedirectResponse("/notes", status_code=303)
+    response = RedirectResponse(request.url_for("page_notes"), status_code=303)
     _set_auth_cookie(response, create_access_token(user.id))
     return response
 
 
-@app.get("/web/logout", include_in_schema=False)
-def page_logout():
-    response = RedirectResponse("/login", status_code=303)
-    response.delete_cookie(COOKIE_NAME, path="/")
+@router.get("/web/logout", include_in_schema=False, name="page_logout")
+def page_logout(request: Request):
+    response = RedirectResponse(request.url_for("page_login"), status_code=303)
+    response.delete_cookie(COOKIE_NAME, path=PREFIX or "/")
     return response
 
 
-@app.get("/notes", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/notes", response_class=HTMLResponse, include_in_schema=False, name="page_notes")
 def page_notes(
     request: Request,
     tag: str | None = Query(None),
@@ -282,7 +290,7 @@ def page_notes(
     )
 
 
-@app.get("/notes/new", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/notes/new", response_class=HTMLResponse, include_in_schema=False, name="page_note_new")
 def page_note_new(
     request: Request,
     user: User = Depends(web_auth.get_current_user_from_cookie),
@@ -293,7 +301,7 @@ def page_note_new(
     )
 
 
-@app.post("/notes/new", response_class=HTMLResponse, include_in_schema=False)
+@router.post("/notes/new", response_class=HTMLResponse, include_in_schema=False, name="page_note_new_post")
 def page_note_new_post(
     request: Request,
     title: str = Form(...),
@@ -304,10 +312,12 @@ def page_note_new_post(
 ):
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     note = crud.create_note(db, user.id, title, content, tag_list)
-    return RedirectResponse(f"/notes/{note.id}", status_code=303)
+    return RedirectResponse(
+        request.url_for("page_note_view", note_id=note.id), status_code=303
+    )
 
 
-@app.get("/notes/{note_id}", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/notes/{note_id}", response_class=HTMLResponse, include_in_schema=False, name="page_note_view")
 def page_note_view(
     request: Request,
     note_id: int,
@@ -323,7 +333,7 @@ def page_note_view(
     )
 
 
-@app.get("/notes/{note_id}/edit", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/notes/{note_id}/edit", response_class=HTMLResponse, include_in_schema=False, name="page_note_edit")
 def page_note_edit(
     request: Request,
     note_id: int,
@@ -339,7 +349,7 @@ def page_note_edit(
     )
 
 
-@app.post("/notes/{note_id}/edit", response_class=HTMLResponse, include_in_schema=False)
+@router.post("/notes/{note_id}/edit", response_class=HTMLResponse, include_in_schema=False, name="page_note_edit_post")
 def page_note_edit_post(
     request: Request,
     note_id: int,
@@ -354,11 +364,14 @@ def page_note_edit_post(
         raise HTTPException(404, "Заметка не найдена")
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     crud.update_note(db, note, title=title, content=content, tags=tag_list)
-    return RedirectResponse(f"/notes/{note.id}", status_code=303)
+    return RedirectResponse(
+        request.url_for("page_note_view", note_id=note.id), status_code=303
+    )
 
 
-@app.post("/notes/{note_id}/delete", include_in_schema=False)
+@router.post("/notes/{note_id}/delete", include_in_schema=False, name="page_note_delete")
 def page_note_delete(
+    request: Request,
     note_id: int,
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
@@ -367,10 +380,10 @@ def page_note_delete(
     if not note:
         raise HTTPException(404, "Заметка не найдена")
     crud.delete_note(db, note)
-    return RedirectResponse("/notes", status_code=303)
+    return RedirectResponse(request.url_for("page_notes"), status_code=303)
 
 
-@app.get("/export/csv", include_in_schema=False)
+@router.get("/export/csv", include_in_schema=False, name="page_export_csv")
 def page_export_csv(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
@@ -384,7 +397,7 @@ def page_export_csv(
     )
 
 
-@app.get("/export/xlsx", include_in_schema=False)
+@router.get("/export/xlsx", include_in_schema=False, name="page_export_xlsx")
 def page_export_xlsx(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
@@ -398,7 +411,7 @@ def page_export_xlsx(
     )
 
 
-@app.get("/analytics/tags", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/analytics/tags", response_class=HTMLResponse, include_in_schema=False, name="page_tags_stats")
 def page_tags_stats(
     request: Request,
     db: Session = Depends(web_auth.get_db),
@@ -411,6 +424,13 @@ def page_tags_stats(
         {"request": request, "user": user, "stats": stats},
     )
 
-@app.get("/favicon.ico", include_in_schema=False)
-def favicon():
-    return RedirectResponse("/static/favicon.ico", status_code=301)
+
+@router.get("/favicon.ico", include_in_schema=False, name="favicon")
+def favicon(request: Request):
+    return RedirectResponse(
+        request.url_for("static", path="favicon.ico"), status_code=301
+    )
+
+
+# Подключаем роутер к приложению
+app.include_router(router)

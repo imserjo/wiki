@@ -11,7 +11,7 @@
     {% if note.tags %}
     <div class="tags">
         {% for t in note.tags %}
-            <a href="/notes?tag={{ t.name }}" class="tag">#{{ t.name }}</a>
+            <a href="{{ APP_PREFIX }}/notes?tag={{ t.name }}" class="tag">#{{ t.name }}</a>
         {% endfor %}
     </div>
     {% endif %}
@@ -19,8 +19,8 @@
     <pre class="content">{{ note.content }}</pre>
 
     <p class="actions">
-        <a href="/notes/{{ note.id }}/edit" class="btn">✏️ Редактировать</a>
-        <a href="/notes" class="btn secondary">← К списку</a>
+        <a href="{{ APP_PREFIX }}/notes/{{ note.id }}/edit" class="btn">✏️ Редактировать</a>
+        <a href="{{ APP_PREFIX }}/notes" class="btn secondary">← К списку</a>
     </p>
 </article>
 {% endblock %}

@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}База знаний{% endblock %}</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="{{ APP_PREFIX }}/static/style.css">
 </head>
 <body>
 <header>
-    <a href="/notes" class="brand">📚 База знаний</a>
+    <a href="{{ APP_PREFIX }}/notes" class="brand">📚 База знаний</a>
     <nav>
         {% if user %}
             <span class="user">👤 {{ user.username }}</span>
-            <a href="/notes/new">+ Новая</a>
-            <a href="/web/logout">Выйти</a>
+            <a href="{{ APP_PREFIX }}/notes/new">+ Новая</a>
+            <a href="{{ APP_PREFIX }}/web/logout">Выйти</a>
         {% else %}
-            <a href="/login">Войти</a>
-            <a href="/register">Регистрация</a>
+            <a href="{{ APP_PREFIX }}/login">Войти</a>
+            <a href="{{ APP_PREFIX }}/register">Регистрация</a>
         {% endif %}
     </nav>
 </header>

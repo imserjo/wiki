@@ -6,7 +6,7 @@
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
 <form method="post"
-      action="{{ '/notes/' ~ note.id ~ '/edit' if note else '/notes/new' }}">
+      action="{{ '{{ APP_PREFIX }}/notes/' ~ note.id ~ '/edit' if note else '{{ APP_PREFIX }}/notes/new' }}">
     <label>Заголовок
         <input type="text" name="title" required maxlength="255"
                value="{{ note.title if note else '' }}">
@@ -20,12 +20,12 @@
     </label>
     <div class="form-actions">
         <button type="submit">Сохранить</button>
-        <a href="{{ '/notes/' ~ note.id if note else '/notes' }}" class="btn secondary">Отмена</a>
+        <a href="{{ '{{ APP_PREFIX }}/notes/' ~ note.id if note else '{{ APP_PREFIX }}/notes' }}" class="btn secondary">Отмена</a>
     </div>
 </form>
 
 {% if note %}
-<form method="post" action="/notes/{{ note.id }}/delete" class="delete-form"
+<form method="post" action="{{ APP_PREFIX }}/notes/{{ note.id }}/delete" class="delete-form"
       onsubmit="return confirm('Удалить заметку?');">
     <button type="submit" class="danger">Удалить</button>
 </form>
