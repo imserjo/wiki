@@ -14,12 +14,14 @@ from sqlalchemy.orm import Session
 from fastapi.responses import StreamingResponse   # добавьте в шапку импортов
 
 
-from app.serjotools import crud, schemas, analytics, web_auth
-from app.serjotools.database import Base, engine
-from app.serjotools.dependencies import get_db, get_current_user
-from app.serjotools.models import User
-from app.serjotools.security import create_access_token, verify_password
-from app.serjotools.config import settings
+from app.src import crud
+from app.src import analytics, schemas
+from app.src.database import Base, engine
+from app.src.dependencies import get_db, get_current_user
+from app.src.models import User
+from app.src.security import create_access_token, verify_password
+from app.src.config import settings
+from app.src import web_auth
 
 BASE_DIR = Path(__file__).resolve().parent
 PREFIX = settings.APP_PREFIX
@@ -181,7 +183,7 @@ def health():
 #  Web UI (HTML, cookie-сессия) — всё под префиксом /wiki
 # ============================================================
 
-router = APIRouter(prefix=PREFIX)
+router = APIRouter(prefix=PREFIX, include_in_schema=False)
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:
