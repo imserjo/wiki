@@ -1,27 +1,17 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
 
-from fastapi import (
-    Depends, FastAPI, Form, HTTPException, Query, Request, status, APIRouter,
-)
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request, APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from fastapi.responses import StreamingResponse   # добавьте в шапку импортов
-
-
-from app.src import crud
-from app.src import analytics, schemas
+from app.src import crud, analytics, web_auth
 from app.src.database import Base, engine
-from app.src.dependencies import get_db, get_current_user
 from app.src.models import User
 from app.src.security import create_access_token, verify_password
 from app.src.config import settings
-from app.src import web_auth
 
 BASE_DIR = Path(__file__).resolve().parent
 PREFIX = settings.APP_PREFIX
@@ -32,8 +22,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Knowledge Base", version="1.1.0", lifespan=lifespan)
-# app = FastAPI(title="Knowledge Base", version="1.1.0", lifespan=lifespan, root_path=PREFIX,)
+app = FastAPI(title="Knowledge Base", version="1.1.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 # Статика монтируется с префиксом, чтобы URL /wiki/static/... работал
 app.mount(f"{PREFIX}/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
@@ -42,137 +31,6 @@ templates.env.globals["APP_PREFIX"] = PREFIX
 
 COOKIE_NAME = web_auth.COOKIE_NAME
 COOKIE_MAX_AGE = 60 * 60  # 1 час
-
-
-# ============================================================
-#  JSON API (всё под /api, требует Bearer-токен)
-#  Оставляем без префикса /wiki — если нужно иное, см. примечание
-# ============================================================
-
-@app.post("/api/auth/register", response_model=schemas.UserOut, status_code=201)
-def api_register(data: schemas.UserCreate, db: Session = Depends(get_db)):
-    if crud.get_user_by_username(db, data.username):
-        raise HTTPException(status_code=400, detail="Логин уже занят")
-    return crud.create_user(db, data.username, data.password)
-
-
-@app.post("/api/auth/login", response_model=schemas.Token)
-def api_login(
-    form: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Session = Depends(get_db),
-):
-    user = crud.get_user_by_username(db, form.username)
-    if not user or not verify_password(form.password, user.hashed_password):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Неверный логин или пароль")
-    return schemas.Token(access_token=create_access_token(user.id))
-
-
-@app.get("/api/auth/me", response_model=schemas.UserOut)
-def api_me(current: User = Depends(get_current_user)):
-    return current
-
-
-@app.get("/api/notes", response_model=list[schemas.NoteOut])
-def api_list_notes(
-    tag: str | None = None,
-    search: str | None = None,
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    return crud.list_notes(db, current.id, tag=tag, search=search)
-
-
-@app.post("/api/notes", response_model=schemas.NoteOut, status_code=201)
-def api_create_note(
-    data: schemas.NoteCreate,
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    return crud.create_note(db, current.id, data.title, data.content, data.tags)
-
-
-@app.get("/api/notes/{note_id}", response_model=schemas.NoteOut)
-def api_get_note(
-    note_id: int,
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    note = crud.get_note(db, note_id, current.id)
-    if not note:
-        raise HTTPException(404, "Заметка не найдена")
-    return note
-
-
-@app.patch("/api/notes/{note_id}", response_model=schemas.NoteOut)
-def api_update_note(
-    note_id: int,
-    data: schemas.NoteUpdate,
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    note = crud.get_note(db, note_id, current.id)
-    if not note:
-        raise HTTPException(404, "Заметка не найдена")
-    return crud.update_note(db, note, **data.model_dump(exclude_unset=True))
-
-
-@app.delete("/api/notes/{note_id}", status_code=204)
-def api_delete_note(
-    note_id: int,
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    note = crud.get_note(db, note_id, current.id)
-    if not note:
-        raise HTTPException(404, "Заметка не найдена")
-    crud.delete_note(db, note)
-    return Response(status_code=204)
-
-
-@app.get("/api/tags", response_model=list[schemas.TagOut])
-def api_tags(
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    return crud.all_tags(db, current.id)
-
-
-@app.get("/api/analytics/tags")
-def api_tags_stats(
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    notes = crud.list_notes(db, current.id)
-    return analytics.tag_statistics(notes)
-
-
-@app.get("/api/export/csv")
-def api_export_csv(
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    notes = crud.list_notes(db, current.id)
-    data = analytics.export_notes_csv(notes)
-    return Response(
-        content=data,
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=notes.csv"},
-    )
-
-
-@app.get("/api/export/xlsx")
-def api_export_xlsx(
-    db: Session = Depends(get_db),
-    current: User = Depends(get_current_user),
-):
-    notes = crud.list_notes(db, current.id)
-    data = analytics.export_notes_excel(notes)
-    return Response(
-        content=data,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=notes.xlsx"},
-    )
-
 
 @app.get("/health")
 def health():

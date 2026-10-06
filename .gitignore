@@ -1,6 +1,3 @@
-.struktura.txt
-.append.txt
-
 # Переменные окружения — НИКОГДА не коммитим
 .env
 .env.*
@@ -30,7 +27,7 @@ htmlcov/
 .coverage
 
 # VS Code (по желанию — оставьте, если хотите делиться настройками команды)
-# .vscode/
+.vscode/
 
 # OS
 .DS_Store
