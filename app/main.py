@@ -12,6 +12,7 @@ from app.src.database import Base, engine
 from app.src.models import User
 from app.src.security import create_access_token, verify_password
 from app.src.config import settings
+from app.src.markdown_render import render_markdown
 
 BASE_DIR = Path(__file__).resolve().parent
 PREFIX = settings.APP_PREFIX
@@ -189,7 +190,12 @@ def page_note_view(
         raise HTTPException(404, "Заметка не найдена")
     return templates.TemplateResponse(
         "note_view.html",
-        {"request": request, "user": user, "note": note},
+        {
+            "request": request,
+            "user": user,
+            "note": note,
+            "content_html": render_markdown(note.content),   # ← готовый HTML
+        },
     )
 
 

@@ -16,7 +16,7 @@
     </div>
     {% endif %}
 
-    <pre class="content">{{ note.content }}</pre>
+    <div class="markdown-body">{{ content_html|safe }}</div>
 
     <p class="actions">
         <a href="{{ APP_PREFIX }}/notes/{{ note.id }}/edit" class="btn">✏️ Редактировать</a>
