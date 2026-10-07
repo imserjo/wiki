@@ -424,6 +424,7 @@ def page_reset_password_post(
 @router.get("/auth/google/login", include_in_schema=False, name="google_login")
 async def google_login(request: Request):
     redirect_uri = request.url_for("google_callback")
+    print(f"DEBUG redirect_uri = {redirect_uri}")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
