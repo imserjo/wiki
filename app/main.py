@@ -277,7 +277,7 @@ def page_export_xlsx(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    notes = crud.list_notes(db, user.id)
+    notes = crud.list_notes(db)
     data = analytics.export_notes_excel(notes)
     return Response(
         content=data,
@@ -292,7 +292,7 @@ def page_tags_stats(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    notes = crud.list_notes(db, user.id)
+    notes = crud.list_notes(db)
     stats = analytics.tag_statistics(notes)
     return templates.TemplateResponse(
         "tags_stats.html",
