@@ -85,6 +85,13 @@
             }, 400);
         });
     }
+
+    // Если в поле есть текст — восстановить фокус и поставить курсор в конец
+    if (searchInput && searchInput.value) {
+        searchInput.focus();
+        const len = searchInput.value.length;
+        searchInput.setSelectionRange(len, len);
+    }
 })();
 </script>
 
