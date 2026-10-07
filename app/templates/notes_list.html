@@ -3,10 +3,11 @@
 {% block content %}
 <h1>Мои заметки</h1>
 
-<form method="get" action="{{ APP_PREFIX }}/notes" class="filters">
-    <input type="text" name="search" placeholder="Поиск..." value="{{ search or '' }}">
+<form method="get" action="{{ APP_PREFIX }}/notes" class="filters" id="filters-form">
+    <input type="text" name="search" placeholder="Поиск..."
+           value="{{ search or '' }}" id="search-input">
 
-    <select name="tag">
+    <select name="tag" id="tag-select">
         <option value="">Все теги</option>
         {% for t in all_tags %}
             <option value="{{ t.name }}" {% if t.name == tag %}selected{% endif %}>
@@ -15,7 +16,7 @@
         {% endfor %}
     </select>
 
-    <select name="author">
+    <select name="author" id="author-select">
         <option value="">Все авторы</option>
         {% for a in all_authors %}
             <option value="{{ a.username }}" {% if a.username == author %}selected{% endif %}>
@@ -60,4 +61,31 @@
 {% else %}
 <p class="empty">Пока пусто. Создайте первую заметку!</p>
 {% endif %}
+
+<script>
+(function () {
+    const form = document.getElementById('filters-form');
+    if (!form) return;
+
+    // Селекты: отправка сразу при изменении
+    form.querySelectorAll('select').forEach(function (el) {
+        el.addEventListener('change', function () {
+            form.submit();
+        });
+    });
+
+    // Текстовый поиск: отправка через 400 мс после окончания ввода (debounce)
+    const searchInput = form.querySelector('input[name="search"]');
+    if (searchInput) {
+        let timer = null;
+        searchInput.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                form.submit();
+            }, 400);
+        });
+    }
+})();
+</script>
+
 {% endblock %}
