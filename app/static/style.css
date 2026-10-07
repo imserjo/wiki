@@ -40,8 +40,8 @@ a.btn.secondary { background: #6b7280; }
 .error { color: #b91c1c; background: #fee2e2; padding: 8px 12px; border-radius: 6px; }
 .empty { color: #6b7280; }
 
-.filters { display: flex; gap: 8px; margin-bottom: 16px; }
-.filters input[type=text] { flex: 1; }
+.filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filters input[type=text] { flex: 1; min-width: 200px; }
 .filters select { width: auto; }
 .filters .clear { align-self: center; color: #2563eb; }
 
@@ -85,6 +85,12 @@ table.stats th {
 }
 table.stats tr:last-child td { border-bottom: 0; }
 
+.btn.disabled {
+    background: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
+    pointer-events: none;
+}
 
 .markdown-body {
     background: #fff;

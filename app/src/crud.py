@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import joinedload
 
 from .models import User, Note, Tag
 from .security import hash_password
@@ -37,13 +38,19 @@ def get_or_create_tags(db: Session, names: list[str]) -> list[Tag]:
 # --- Notes ---
 def list_notes(
     db: Session,
-    owner_id: int,
     tag: str | None = None,
+    author: str | None = None,          # ← НОВОЕ
     search: str | None = None,
 ) -> list[Note]:
-    stmt = select(Note).where(Note.owner_id == owner_id)
+    """Все заметки всех пользователей, с фильтрами и предзагрузкой связей."""
+    stmt = (
+        select(Note)
+        .options(joinedload(Note.owner), joinedload(Note.tags))
+    )
     if tag:
         stmt = stmt.join(Note.tags).where(Tag.name == tag.lower())
+    if author:
+        stmt = stmt.join(Note.owner).where(User.username == author)   # ← НОВОЕ
     if search:
         like = f"%{search.lower()}%"
         stmt = stmt.where(Note.title.ilike(like) | Note.content.ilike(like))
@@ -51,8 +58,13 @@ def list_notes(
     return list(db.scalars(stmt).unique())
 
 
-def get_note(db: Session, note_id: int, owner_id: int) -> Note | None:
-    return db.scalar(select(Note).where(Note.id == note_id, Note.owner_id == owner_id))
+def get_note(db: Session, note_id: int) -> Note | None:
+    """Любая заметка по id — без привязки к владельцу."""
+    return db.scalar(
+        select(Note)
+        .options(joinedload(Note.owner), joinedload(Note.tags))
+        .where(Note.id == note_id)
+    )
 
 
 def create_note(
@@ -86,12 +98,18 @@ def delete_note(db: Session, note: Note) -> None:
     db.commit()
 
 
-def all_tags(db: Session, owner_id: int) -> list[Tag]:
+def all_tags(db: Session) -> list[Tag]:
+    """Все теги, которые есть в системе (используются хоть где-то)."""
+    stmt = select(Tag).join(Tag.notes).distinct().order_by(Tag.name)
+    return list(db.scalars(stmt))
+
+
+def all_authors(db: Session) -> list[User]:
+    """Список пользователей, у которых есть хотя бы одна заметка."""
     stmt = (
-        select(Tag)
-        .join(Tag.notes)
-        .where(Note.owner_id == owner_id)
+        select(User)
+        .join(User.notes)
         .distinct()
-        .order_by(Tag.name)
+        .order_by(User.username)
     )
     return list(db.scalars(stmt))

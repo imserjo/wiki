@@ -4,7 +4,7 @@
 <article>
     <h1>{{ note.title }}</h1>
     <div class="meta">
-        создано {{ note.created_at.strftime("%Y-%m-%d %H:%M") }} ·
+        👤 <a href="{{ APP_PREFIX }}/notes?author={{ note.owner.username }}">{{ note.owner.username }}</a> ·
         обновлено {{ note.updated_at.strftime("%Y-%m-%d %H:%M") }}
     </div>
 
@@ -19,8 +19,19 @@
     <div class="markdown-body">{{ content_html|safe }}</div>
 
     <p class="actions">
-        <a href="{{ APP_PREFIX }}/notes/{{ note.id }}/edit" class="btn">✏️ Редактировать</a>
+        {% if is_owner %}
+            <a href="{{ APP_PREFIX }}/notes/{{ note.id }}/edit" class="btn">✏️ Редактировать</a>
+        {% else %}
+            <span class="btn disabled" title="Редактировать можно только свои заметки">✏️ Редактировать</span>
+        {% endif %}
         <a href="{{ APP_PREFIX }}/notes" class="btn secondary">← К списку</a>
     </p>
+
+    {% if is_owner %}
+    <form method="post" action="{{ APP_PREFIX }}/notes/{{ note.id }}/delete" class="delete-form"
+          onsubmit="return confirm('Удалить заметку?');">
+        <button type="submit" class="danger">Удалить</button>
+    </form>
+    {% endif %}
 </article>
 {% endblock %}

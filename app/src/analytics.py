@@ -11,6 +11,7 @@ def notes_to_dataframe(notes: list[Note]) -> pd.DataFrame:
     rows = [
         {
             "id": n.id,
+            "author": n.owner.username,          # ← добавили
             "title": n.title,
             "content": n.content,
             "tags": ", ".join(t.name for t in n.tags),

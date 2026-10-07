@@ -132,12 +132,14 @@ def page_logout(request: Request):
 def page_notes(
     request: Request,
     tag: str | None = Query(None),
+    author: str | None = Query(None),        # ← НОВОЕ
     search: str | None = Query(None),
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    notes = crud.list_notes(db, user.id, tag=tag, search=search)
-    all_tags = crud.all_tags(db, user.id)
+    notes = crud.list_notes(db, tag=tag, author=author, search=search)
+    all_tags = crud.all_tags(db)
+    all_authors = crud.all_authors(db)       # ← НОВОЕ
     return templates.TemplateResponse(
         "notes_list.html",
         {
@@ -145,7 +147,9 @@ def page_notes(
             "user": user,
             "notes": notes,
             "all_tags": all_tags,
+            "all_authors": all_authors,      # ← НОВОЕ
             "tag": tag,
+            "author": author,                # ← НОВОЕ
             "search": search,
         },
     )
@@ -172,7 +176,7 @@ def page_note_new_post(
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-    note = crud.create_note(db, user.id, title, content, tag_list)
+    note = crud.create_note(db, user.id, title, content, tag_list)   # owner_id = user.id
     return RedirectResponse(
         request.url_for("page_note_view", note_id=note.id), status_code=303
     )
@@ -185,7 +189,7 @@ def page_note_view(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    note = crud.get_note(db, note_id, user.id)
+    note = crud.get_note(db, note_id)                        # ← без user.id
     if not note:
         raise HTTPException(404, "Заметка не найдена")
     return templates.TemplateResponse(
@@ -194,7 +198,8 @@ def page_note_view(
             "request": request,
             "user": user,
             "note": note,
-            "content_html": render_markdown(note.content),   # ← готовый HTML
+            "content_html": render_markdown(note.content),
+            "is_owner": note.owner_id == user.id,            # ← для шаблона
         },
     )
 
@@ -206,9 +211,11 @@ def page_note_edit(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    note = crud.get_note(db, note_id, user.id)
+    note = crud.get_note(db, note_id)
     if not note:
         raise HTTPException(404, "Заметка не найдена")
+    if note.owner_id != user.id:
+        raise HTTPException(403, "Это чужая заметка — редактировать нельзя")
     return templates.TemplateResponse(
         "note_form.html",
         {"request": request, "user": user, "note": note},
@@ -225,14 +232,14 @@ def page_note_edit_post(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    note = crud.get_note(db, note_id, user.id)
+    note = crud.get_note(db, note_id)
     if not note:
         raise HTTPException(404, "Заметка не найдена")
+    if note.owner_id != user.id:
+        raise HTTPException(403, "Это чужая заметка — редактировать нельзя")
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     crud.update_note(db, note, title=title, content=content, tags=tag_list)
-    return RedirectResponse(
-        request.url_for("page_note_view", note_id=note.id), status_code=303
-    )
+    return RedirectResponse(request.url_for("page_note_view", note_id=note.id), status_code=303)
 
 
 @router.post("/notes/{note_id}/delete", include_in_schema=False, name="page_note_delete")
@@ -242,9 +249,11 @@ def page_note_delete(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    note = crud.get_note(db, note_id, user.id)
+    note = crud.get_note(db, note_id)
     if not note:
         raise HTTPException(404, "Заметка не найдена")
+    if note.owner_id != user.id:
+        raise HTTPException(403, "Это чужая заметка — удалять нельзя")
     crud.delete_note(db, note)
     return RedirectResponse(request.url_for("page_notes"), status_code=303)
 
@@ -254,7 +263,7 @@ def page_export_csv(
     db: Session = Depends(web_auth.get_db),
     user: User = Depends(web_auth.get_current_user_from_cookie),
 ):
-    notes = crud.list_notes(db, user.id)
+    notes = crud.list_notes(db)
     data = analytics.export_notes_csv(notes)
     return Response(
         content=data,
