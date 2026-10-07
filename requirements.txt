@@ -20,3 +20,4 @@ itsdangerous
 authlib
 httpx
 httpx2
+# gunicorn # не актуально для однопроцессорной виртуалки
