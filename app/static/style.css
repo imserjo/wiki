@@ -92,6 +92,23 @@ table.stats tr:last-child td { border-bottom: 0; }
     pointer-events: none;
 }
 
+.google-btn {
+    background: #4285f4;
+    color: #fff;
+    display: inline-block;
+    padding: 10px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    margin-top: 12px;
+}
+.success {
+    color: #065f46;
+    background: #d1fae5;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
 .markdown-body {
     background: #fff;
     padding: 20px;

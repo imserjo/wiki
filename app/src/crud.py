@@ -113,3 +113,37 @@ def all_authors(db: Session) -> list[User]:
         .order_by(User.username)
     )
     return list(db.scalars(stmt))
+
+
+def get_user_by_email(db: Session, email: str) -> User | None:
+    return db.scalar(select(User).where(User.email == email.lower()))
+
+
+def get_user_by_oauth(db: Session, provider: str, oauth_id: str) -> User | None:
+    return db.scalar(
+        select(User).where(
+            User.auth_provider == provider,
+            User.oauth_id == oauth_id,
+        )
+    )
+
+
+def create_user(
+    db: Session,
+    username: str,
+    email: str,
+    password: str | None = None,
+    auth_provider: str = "local",
+    oauth_id: str | None = None,
+) -> User:
+    user = User(
+        username=username,
+        email=email.lower(),
+        hashed_password=hash_password(password) if password else None,
+        auth_provider=auth_provider,
+        oauth_id=oauth_id,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

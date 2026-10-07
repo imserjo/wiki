@@ -6,11 +6,16 @@
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
 <form method="post" action="{{ APP_PREFIX }}/register">
-    <label>Логин
-        <input type="text" name="username" required minlength="3" maxlength="64">
+    <label>Ник (виден другим пользователям)
+        <input type="text" name="username" required minlength="3" maxlength="64"
+               autocomplete="nickname">
+    </label>
+    <label>Email (для входа и восстановления пароля)
+        <input type="email" name="email" required autocomplete="email">
     </label>
     <label>Пароль
-        <input type="password" name="password" required minlength="6">
+        <input type="password" name="password" required minlength="6"
+               autocomplete="new-password">
     </label>
     <button type="submit">Создать аккаунт</button>
 </form>

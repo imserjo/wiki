@@ -16,3 +16,7 @@ bcrypt>=4.1.0
 markdown 
 bleach
 pygments
+itsdangerous
+authlib
+httpx
+httpx2

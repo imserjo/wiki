@@ -10,9 +10,15 @@ from sqlalchemy.orm import Session
 from app.src import crud, analytics, web_auth
 from app.src.database import Base, engine
 from app.src.models import User
-from app.src.security import create_access_token, verify_password
+from app.src.security import create_access_token, verify_password, generate_reset_token, verify_reset_token, hash_password
+from app.src.email_utils import send_password_reset_email
+    
 from app.src.config import settings
 from app.src.markdown_render import render_markdown
+
+from authlib.integrations.starlette_client import OAuth
+from starlette.middleware.sessions import SessionMiddleware
+
 
 BASE_DIR = Path(__file__).resolve().parent
 PREFIX = settings.APP_PREFIX
@@ -32,6 +38,19 @@ templates.env.globals["APP_PREFIX"] = PREFIX
 
 COOKIE_NAME = web_auth.COOKIE_NAME
 COOKIE_MAX_AGE = 60 * 60  # 1 час
+
+# SessionMiddleware нужен Authlib для хранения state между запросами
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+
+oauth = OAuth()
+oauth.register(
+    name="google",
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_kwargs={"scope": "openid email profile"},
+)
+
 
 @app.get("/health")
 def health():
@@ -76,15 +95,15 @@ def page_login(
 @router.post("/login", response_class=HTMLResponse, name="page_login_post")
 def page_login_post(
     request: Request,
-    username: str = Form(...),
+    email: str = Form(...),                 # ← было username
     password: str = Form(...),
     db: Session = Depends(web_auth.get_db),
 ):
-    user = crud.get_user_by_username(db, username)
+    user = crud.get_user_by_email(db, email)   # ← ищем по email
     if not user or not verify_password(password, user.hashed_password):
         return templates.TemplateResponse(
             "login.html",
-            {"request": request, "user": None, "error": "Неверный логин или пароль"},
+            {"request": request, "user": None, "error": "Неверный email или пароль"},
             status_code=400,
         )
     response = RedirectResponse(request.url_for("page_notes"), status_code=303)
@@ -106,16 +125,23 @@ def page_register(
 def page_register_post(
     request: Request,
     username: str = Form(...),
+    email: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(web_auth.get_db),
 ):
     if crud.get_user_by_username(db, username):
         return templates.TemplateResponse(
             "register.html",
-            {"request": request, "user": None, "error": "Логин уже занят"},
+            {"request": request, "user": None, "error": "Ник уже занят"},
             status_code=400,
         )
-    user = crud.create_user(db, username, password)
+    if crud.get_user_by_email(db, email):
+        return templates.TemplateResponse(
+            "register.html",
+            {"request": request, "user": None, "error": "Email уже зарегистрирован"},
+            status_code=400,
+        )
+    user = crud.create_user(db, username, email, password)
     response = RedirectResponse(request.url_for("page_notes"), status_code=303)
     _set_auth_cookie(response, create_access_token(user.id))
     return response
@@ -305,6 +331,150 @@ def favicon(request: Request):
     return RedirectResponse(
         request.url_for("static", path="favicon.ico"), status_code=301
     )
+
+
+@router.get("/forgot-password", response_class=HTMLResponse, include_in_schema=False, name="page_forgot_password")
+def page_forgot_password(request: Request):
+    return templates.TemplateResponse("forgot_password.html", {"request": request, "user": None})
+
+
+@router.post("/forgot-password", response_class=HTMLResponse, include_in_schema=False, name="page_forgot_password_post")
+def page_forgot_password_post(
+    request: Request,
+    email: str = Form(...),
+    db: Session = Depends(web_auth.get_db),
+):
+    user = crud.get_user_by_email(db, email)
+    
+    # ВАЖНО: не раскрываем, существует ли email
+    # Всегда показываем одинаковое сообщение
+    if user:
+        token = generate_reset_token(user.email)
+        reset_url = f"{settings.APP_BASE_URL}{PREFIX}/reset-password/{token}"
+        try:
+            send_password_reset_email(user.email, reset_url)
+        except Exception:
+            pass  # логируем, но не показываем пользователю
+    
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {
+            "request": request,
+            "user": None,
+            "message": "Если этот email зарегистрирован, мы отправили ссылку для сброса пароля.",
+        },
+    )
+
+
+@router.get("/reset-password/{token}", response_class=HTMLResponse, include_in_schema=False, name="page_reset_password")
+def page_reset_password(request: Request, token: str):
+    email = verify_reset_token(token)
+    if not email:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "user": None, "error": "Ссылка недействительна или истекла."},
+            status_code=400,
+        )
+    return templates.TemplateResponse(
+        "reset_password.html",
+        {"request": request, "user": None, "token": token},
+    )
+
+
+@router.post("/reset-password/{token}", response_class=HTMLResponse, include_in_schema=False, name="page_reset_password_post")
+def page_reset_password_post(
+    request: Request,
+    token: str,
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    db: Session = Depends(web_auth.get_db),
+):
+    email = verify_reset_token(token)
+    if not email:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "user": None, "error": "Ссылка недействительна или истекла."},
+            status_code=400,
+        )
+    
+    if password != password_confirm:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "user": None, "token": token, "error": "Пароли не совпадают."},
+            status_code=400,
+        )
+    
+    if len(password) < 6:
+        return templates.TemplateResponse(
+            "reset_password.html",
+            {"request": request, "user": None, "token": token, "error": "Пароль должен быть минимум 6 символов."},
+            status_code=400,
+        )
+    
+    user = crud.get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(404, "Пользователь не найден")
+    
+    user.hashed_password = hash_password(password)
+    db.commit()
+    
+    return RedirectResponse(request.url_for("page_login"), status_code=303)
+
+
+@router.get("/auth/google/login", include_in_schema=False, name="google_login")
+async def google_login(request: Request):
+    redirect_uri = request.url_for("google_callback")
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+@router.get("/auth/google/callback", include_in_schema=False, name="google_callback")
+async def google_callback(
+    request: Request,
+    db: Session = Depends(web_auth.get_db),
+):
+    try:
+        token = await oauth.google.authorize_access_token(request)
+    except Exception:
+        return RedirectResponse(request.url_for("page_login"), status_code=303)
+    
+    userinfo = token.get("userinfo")
+    if not userinfo or not userinfo.get("email"):
+        return RedirectResponse(request.url_for("page_login"), status_code=303)
+    
+    email = userinfo["email"].lower()
+    oauth_id = userinfo["sub"]  # уникальный ID Google
+    name = userinfo.get("name", email.split("@")[0])
+    
+    # Ищем по oauth_id, потом по email
+    user = crud.get_user_by_oauth(db, "google", oauth_id)
+    if not user:
+        user = crud.get_user_by_email(db, email)
+        if user:
+            # Существующий email — привязываем Google
+            user.auth_provider = "google"
+            user.oauth_id = oauth_id
+            db.commit()
+        else:
+            # Новый пользователь
+            # username из email, с обработкой коллизий
+            base_username = email.split("@")[0][:64]
+            username = base_username
+            counter = 1
+            while crud.get_user_by_username(db, username):
+                username = f"{base_username}{counter}"
+                counter += 1
+            
+            user = crud.create_user(
+                db, username, email,
+                password=None,
+                auth_provider="google",
+                oauth_id=oauth_id,
+            )
+    
+    # Выдаём свой JWT (как при обычном логине)
+    response = RedirectResponse(request.url_for("page_notes"), status_code=303)
+    _set_auth_cookie(response, create_access_token(user.id))
+    return response
 
 
 # Подключаем роутер к приложению

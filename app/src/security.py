@@ -1,10 +1,25 @@
-from datetime import datetime, timedelta, timezone
-
 import bcrypt
+from datetime import datetime, timedelta, timezone
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from jose import jwt, JWTError
-
 from .config import settings
 
+
+# Отдельные сериализаторы для разных целей (salt защищает от переиспользования токенов)
+_reset_serializer = URLSafeTimedSerializer(settings.SECRET_KEY, salt="password-reset")
+
+
+def generate_reset_token(email: str) -> str:
+    """Создаёт подписанный токен с email внутри. Живёт 1 час."""
+    return _reset_serializer.dumps(email)
+
+
+def verify_reset_token(token: str, max_age: int = 3600) -> str | None:
+    """Проверяет токен. Возвращает email или None, если просрочен/подделан."""
+    try:
+        return _reset_serializer.loads(token, max_age=max_age)
+    except (SignatureExpired, BadSignature):
+        return None
 
 # ---------- Пароли (bcrypt напрямую) ----------
 
