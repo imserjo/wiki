@@ -1,4 +1,5 @@
 recommendations.md
+desktop.ini
 
 # Переменные окружения — НИКОГДА не коммитим
 .env
